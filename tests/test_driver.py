@@ -22,9 +22,10 @@ package.loaded["cosock.socket"] = {}; package.loaded["cosock.ssl"] = {}
 TV = { power = "on", volume = 38, mute = "0", token = "tok1", allowed = true }
 CALLS = {}
 package.loaded["tv_api"] = {
-  ssdp = function() return { "192.168.1.27" } end,
+  ssdp = function() return SSDP or { "192.168.1.27" } end,
+  scan = function() return SCAN or {} end,
   info = function(ip)
-    if TV.power == "off" then return nil end
+    if TV.power == "off" or ip ~= "192.168.1.27" then return nil end
     return { device = { type = "Samsung SmartTV", name = "[TV] Samsung Q65", modelName = "QE65", PowerState = TV.power,
       wifiMac = "AA:BB:CC:DD:EE:FF" } } end,
   soap = function(ip, action, args)
@@ -132,3 +133,15 @@ def test_manual_ip():
     lua.execute(b'''DEV.preferences.ipAddress = "192.168.1.99"
       DRIVER.lifecycle_handlers.infoChanged(DRV, DEV, "x", { old_st_store = { preferences = { ipAddress = "auto" } } })''')
     assert g.DEV.fields[b"ip"] is None
+
+
+def test_manual_then_scan():
+    lua = runtime()
+    lua.execute(HARNESS.encode())
+    lua.execute(b'require("init")')
+    lua.execute(b'SSDP = {}; DRIVER.discovery(DRV, {}, function() return true end); DEV = DEVICES[1]')
+    g = lua.globals()
+    assert g.DEV.device_network_id == b"samsungtv-manual"
+    lua.execute(b'SCAN = { "192.168.1.5", "192.168.1.27" }; DRIVER.capability_handlers.refresh.refresh(DRV, DEV)')
+    assert g.DEV.fields[b"ip"] == b"192.168.1.27"
+    assert ev(lua, "cap.switch.switch.on") is True

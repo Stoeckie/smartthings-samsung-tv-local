@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-06a"
+local BUILD = "2026-11-06b"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -62,12 +62,25 @@ local function send_keys(dev, keys, wait)
   return true
 end
 
-local function rediscover(dev, st)
+local function is_tv(info)
+  return type(info) == "table" and tostring(((info.device or {}).type) or ""):lower():find("tv", 1, true) ~= nil
+end
+
+local function candidates(timeout, allow_scan)
+  local ips = api.ssdp(timeout)
+  if #ips == 0 and allow_scan then
+    ips = api.scan()
+    log.info("[tv] SSDP found nothing, network scan found " .. #ips .. " address(es) with port 8001 open")
+  end
+  return ips
+end
+
+local function rediscover(dev, st, allow_scan)
   if os.time() - (st.rediscovered_at or 0) < REDISCOVER_EVERY then return end
   st.rediscovered_at = os.time()
-  for _, ip in ipairs(api.ssdp(4)) do
+  for _, ip in ipairs(candidates(4, allow_scan)) do
     local info = api.info(ip)
-    if info and dni_for(info, ip) == dev.device_network_id then
+    if is_tv(info) and (dni_for(info, ip) == dev.device_network_id or dev.device_network_id == "samsungtv-manual") then
       if ip ~= dev:get_field("ip") then log.info("[tv] " .. tostring(dev.label) .. ": found at " .. ip) end
       dev:set_field("ip", ip, { persist = true })
       return ip
@@ -90,9 +103,12 @@ local function poll_once(dev, st)
   local host, mac = settings(dev)
   local auto = clean((dev.preferences or {}).ipAddress)
   auto = auto == "" or auto == "auto"
-  if host == "" and auto then host = rediscover(dev, st) or "" end
+  if host == "" and auto then host = rediscover(dev, st, true) or "" end
   if host == "" then
-    log.warn("[tv] " .. tostring(dev.label) .. ": TV not found, set its IP address in the settings")
+    if not st.warned then
+      st.warned = true
+      log.warn("[tv] " .. tostring(dev.label) .. ": TV not found (is it on?), set its IP address in the settings")
+    end
     emit(dev, "switch", "off", switch.switch.off())
     return
   end
@@ -103,7 +119,7 @@ local function poll_once(dev, st)
     if auto and st.misses >= 3 then rediscover(dev, st) end
     return
   end
-  st.misses = 0
+  st.misses, st.warned = 0, false
   local d = info.device or {}
   if not mac and proto.clean_mac(d.wifiMac) then dev:set_field("mac", proto.clean_mac(d.wifiMac), { persist = true }) end
   if not st.listed then
@@ -249,10 +265,10 @@ local function discovery(driver, _opts, _should_continue)
   local known = {}
   for _, d in ipairs(driver:get_devices()) do known[d.device_network_id or ""] = d end
   local found = 0
-  for _, ip in ipairs(api.ssdp(5)) do
+  for _, ip in ipairs(candidates(5, true)) do
     local info = api.info(ip)
     local d = (info or {}).device or {}
-    if info and tostring(d.type or ""):lower():find("tv", 1, true) then
+    if is_tv(info) then
       found = found + 1
       local dni = dni_for(info, ip)
       if known[dni] then

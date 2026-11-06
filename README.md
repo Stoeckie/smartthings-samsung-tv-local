@@ -14,7 +14,7 @@ SmartThings Edge driver for Samsung Tizen TVs (2016 and later). It runs on your 
 ## Setup
 1. Give the TV a fixed IP address in your router (DHCP reservation).
 2. On the TV, turn on **Settings > General > Network > Expert Settings > Power On with Mobile** (the name differs a bit per model year). Without it, the TV cannot be woken from deep standby.
-3. Install the driver from the channel. In the SmartThings app, go to **Add device > Scan nearby**. Your TV is found via SSDP and added.
+3. Install the driver from the channel. In the SmartThings app, go to **Add device > Scan nearby**. Your TV is found via SSDP, or by a quick scan of port 8001 on your network when SSDP gets no answer.
 4. Turn the TV on. Within 2 minutes it asks to **Allow** "SmartThings Hub". Choose Allow with the remote. If you miss it, tap Refresh on the device to ask again.
 5. Settings on the device:
    * **IP address**: leave on `auto` unless discovery fails.

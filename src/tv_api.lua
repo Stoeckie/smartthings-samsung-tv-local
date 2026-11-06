@@ -180,17 +180,22 @@ function M.wol(mac, ip)
   return sent > 0
 end
 
-local SSDP_ST = "urn:samsung.com:device:RemoteControlReceiver:1"
+local SSDP_ST = {
+  "urn:samsung.com:device:RemoteControlReceiver:1",
+  "urn:dial-multiscreen-org:service:dial:1",
+  "urn:schemas-upnp-org:device:MediaRenderer:1",
+}
 
---- SSDP search for Samsung TVs; returns a list of IP addresses.
+--- SSDP search for Samsung devices; returns a list of IP addresses.
 function M.ssdp(timeout)
   local udp = socket.udp()
   if not udp then return {} end
   udp:setsockname("*", 0)
   udp:settimeout(1)
-  local msg = table.concat({ "M-SEARCH * HTTP/1.1", "HOST: 239.255.255.250:1900", 'MAN: "ssdp:discover"', "MX: 2",
-    "ST: " .. SSDP_ST }, "\r\n") .. "\r\n\r\n"
-  udp:sendto(msg, "239.255.255.250", 1900)
+  for _, st in ipairs(SSDP_ST) do
+    udp:sendto(table.concat({ "M-SEARCH * HTTP/1.1", "HOST: 239.255.255.250:1900", 'MAN: "ssdp:discover"', "MX: 2",
+      "ST: " .. st }, "\r\n") .. "\r\n\r\n", "239.255.255.250", 1900)
+  end
   local found, seen = {}, {}
   local deadline = socket.gettime() + (timeout or 4)
   while socket.gettime() < deadline do
@@ -201,6 +206,39 @@ function M.ssdp(timeout)
     end
   end
   udp:close()
+  return found
+end
+
+--- The hub's own LAN address (no packet is sent).
+function M.local_ip()
+  local udp = socket.udp()
+  if not udp then return nil end
+  udp:setpeername("192.0.2.1", 9)
+  local ip = udp:getsockname()
+  udp:close()
+  if ip and ip ~= "0.0.0.0" then return ip end
+end
+
+--- Fallback when SSDP finds nothing: try port 8001 on every address of the hub's /24 network, in parallel.
+function M.scan(prefix)
+  prefix = prefix or tostring(M.local_ip() or ""):match("^(%d+%.%d+%.%d+)%.")
+  if not prefix then return {} end
+  local cosock = require "cosock"
+  local found, left = {}, 254
+  for i = 1, 254 do
+    cosock.spawn(function()
+      local ip = prefix .. "." .. i
+      local sock = socket.tcp()
+      if sock then
+        sock:settimeout(1.5)
+        if sock:connect(ip, 8001) then found[#found + 1] = ip end
+        sock:close()
+      end
+      left = left - 1
+    end, "tv-scan")
+  end
+  local deadline = socket.gettime() + 10
+  while left > 0 and socket.gettime() < deadline do socket.sleep(0.2) end
   return found
 end
 
