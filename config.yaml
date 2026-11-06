@@ -1,0 +1,7 @@
+name: "Samsung TV (local)"
+packageKey: "samsung-tv-local"
+description: "Samsung Tizen TVs (2016 and later) over the LAN: power, volume, mute, input and channel, no cloud"
+vendorSupportInformation: "https://github.com/Stoeckie"
+permissions:
+  lan: {}
+  discovery: {}

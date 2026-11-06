@@ -1,0 +1,43 @@
+name: samsung-tv
+components:
+  - id: main
+    capabilities:
+      - id: switch
+        version: 1
+      - id: audioVolume
+        version: 1
+      - id: audioMute
+        version: 1
+      - id: mediaInputSource
+        version: 1
+      - id: tvChannel
+        version: 1
+      - id: refresh
+        version: 1
+    categories:
+      - name: Television
+preferences:
+  - name: ipAddress
+    title: TV IP address
+    description: Leave on "auto" (found on the network). Set an IP only if that fails; a fixed IP in the router helps.
+    required: false
+    preferenceType: string
+    definition:
+      stringType: text
+      default: "auto"
+  - name: macAddress
+    title: TV MAC address (wake-on-LAN)
+    description: Leave on "auto" (read from the TV). For a TV on cable, enter the MAC of its wired port.
+    required: false
+    preferenceType: string
+    definition:
+      stringType: text
+      default: "auto"
+  - name: pollInterval
+    title: Poll interval (seconds)
+    required: false
+    preferenceType: integer
+    definition:
+      minimum: 5
+      maximum: 300
+      default: 10
