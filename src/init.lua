@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-07g"
+local BUILD = "2026-11-07h"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -389,6 +389,8 @@ local driver = Driver("samsung-tv-local", {
     },
     [input.ID] = { [input.commands.setInputSource.NAME] = set_input },
     [capabilities.keypadInput.ID] = { [capabilities.keypadInput.commands.sendKey.NAME] = send_keypad },
+    -- component "source": a button that opens the TV's Source menu
+    [capabilities.momentary.ID] = { [capabilities.momentary.commands.push.NAME] = function(_, dev) send_keys(dev, { "KEY_SOURCE" }) end },
     [channel.ID] = {
       [channel.commands.channelUp.NAME] = function(_, dev) send_keys(dev, { "KEY_CHUP" }) end,
       [channel.commands.channelDown.NAME] = function(_, dev) send_keys(dev, { "KEY_CHDOWN" }) end,

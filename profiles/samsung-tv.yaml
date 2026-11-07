@@ -18,6 +18,11 @@ components:
         version: 1
     categories:
       - name: Television
+  - id: source
+    label: Source menu
+    capabilities:
+      - id: momentary
+        version: 1
 preferences:
   - name: ipAddress
     title: TV IP address

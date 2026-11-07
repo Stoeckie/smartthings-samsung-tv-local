@@ -10,7 +10,7 @@ local function capmock(path)
     __call = function(_, a) return { path = path, arg = a } end })
 end
 local caps = capmock("cap")
-for _, id in ipairs({ "switch", "audioVolume", "audioMute", "mediaInputSource", "tvChannel", "refresh", "keypadInput" }) do caps[id].ID = id end
+for _, id in ipairs({ "switch", "audioVolume", "audioMute", "mediaInputSource", "tvChannel", "refresh", "keypadInput", "momentary" }) do caps[id].ID = id end
 package.loaded["st.capabilities"] = caps
 package.loaded["st.driver"] = function(name, tmpl) DRIVER = tmpl; return { run = function() end } end
 LOGS = {}
@@ -211,3 +211,11 @@ def test_input_auto_by_model_year():
     lua.execute(b'DEV.fields.tv_year = 2019')
     lua.execute(b'DRIVER.capability_handlers.mediaInputSource.setInputSource(DRV, DEV, { args = { mode = "HDMI1" } })')
     assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_HDMI1"
+
+
+def test_source_button():
+    lua = setup()
+    g = lua.globals()
+    lua.execute(b'DEV.fields.token = "tok1"')
+    lua.execute(b'DRIVER.capability_handlers.momentary.push(DRV, DEV, { component = "source", args = {} })')
+    assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_SOURCE"
