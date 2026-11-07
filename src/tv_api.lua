@@ -126,6 +126,8 @@ function M.ws_open(host, token, wait)
       ev = okj and type(ev) == "table" and ev or {}
       if ev.event == "ms.channel.connect" then
         local tok = type(ev.data) == "table" and ev.data.token or nil
+        -- newer TVs send ms.channel.ready after connect and may ignore keys sent before it
+        M.wait_ready(conn, M.READY_WAIT)
         return conn, tok and tostring(tok) or token
       elseif ev.event == "ms.channel.unauthorized" then
         tls:close()
@@ -153,9 +155,53 @@ function M.keys(host, token, keys, wait, gap)
     if not ok then M.ws_close(conn); return nil, "send key: " .. tostring(err) end
     if i < #keys then socket.sleep(gap or 0.4) end
   end
-  socket.sleep(0.3)
+  -- Keep the channel open for a moment: a TV may drop keys when the connection closes right after them,
+  -- and anything it answers (an error, a new token) is read and reported.
+  M.events = M.drain(conn, M.LINGER)
   M.ws_close(conn)
   return tok or ""
+end
+
+M.LINGER = 1.0
+M.READY_WAIT = 1.0
+
+--- After connect: wait up to `secs` for ms.channel.ready (not every TV sends it).
+function M.wait_ready(conn, secs)
+  local deadline = socket.gettime() + (secs or 1)
+  while true do
+    local left = deadline - socket.gettime()
+    if left <= 0 then return false end
+    conn.sock:settimeout(left)
+    local op, data = proto.ws_read(function(n) return conn.sock:receive(n) end)
+    if not op or op == 8 then return false end
+    if op == 9 then conn.sock:send(proto.ws_frame(data, 10)) end
+    if op == 1 then
+      local okj, ev = pcall(json.decode, data)
+      if okj and type(ev) == "table" and ev.event == "ms.channel.ready" then return true end
+    end
+  end
+end
+
+--- Read frames for `secs` seconds; returns a list of event names (text frames) seen.
+function M.drain(conn, secs)
+  local seen = {}
+  local deadline = socket.gettime() + (secs or 1)
+  while true do
+    local left = deadline - socket.gettime()
+    if left <= 0 then break end
+    conn.sock:settimeout(left)
+    local op, data = proto.ws_read(function(n) return conn.sock:receive(n) end)
+    if not op then break end
+    if op == 8 then seen[#seen + 1] = "closed by the TV"; break end
+    if op == 9 then conn.sock:send(proto.ws_frame(data, 10)) end
+    if op == 1 then
+      local okj, ev = pcall(json.decode, data)
+      ev = okj and type(ev) == "table" and ev or {}
+      seen[#seen + 1] = tostring(ev.event or "?") .. (ev.data and type(ev.data) == "table" and ev.data.message
+        and (": " .. tostring(ev.data.message)) or "")
+    end
+  end
+  return seen
 end
 
 --- Magic packet to the TV address, the /24 broadcast and the global broadcast (3 times each).

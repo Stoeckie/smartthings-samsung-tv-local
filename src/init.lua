@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-07a"
+local BUILD = "2026-11-07b"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -73,6 +73,9 @@ local function send_keys(dev, keys, wait, gap)
     return false
   end
   save_token(dev, tok)
+  local seen = api.events or {}
+  log.info(string.format("[tv] %s: sent %s%s", tostring(dev.label), table.concat(keys, ","),
+    #seen > 0 and (", TV answered: " .. table.concat(seen, "; "):sub(1, 200)) or ""))
   return true
 end
 
