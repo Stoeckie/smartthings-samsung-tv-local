@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-07h"
+local BUILD = "2026-11-08a"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -17,6 +17,8 @@ local switch = capabilities.switch
 local volume = capabilities.audioVolume
 local mute = capabilities.audioMute
 local input = capabilities.mediaInputSource
+local tvsource = capabilities["silvervalley08660.tvInput"]
+local emit_sources -- defined below, used by the poll
 local channel = capabilities.tvChannel
 
 local state = {}   -- device.id -> { timer, busy, pairing, tries, asked_at, misses, rediscovered_at }
@@ -138,7 +140,11 @@ local function poll_once(dev, st)
   end
   st.misses, st.warned = 0, false
   local year = proto.model_year(info)
-  if year and dev:get_field("tv_year") ~= year then dev:set_field("tv_year", year, { persist = true }) end
+  if year and dev:get_field("tv_year") ~= year then
+    dev:set_field("tv_year", year, { persist = true })
+    dev:set_field("sources_emitted", nil)
+    emit_sources(dev)
+  end
   local d = info.device or {}
   if not mac and proto.clean_mac(d.wifiMac) then dev:set_field("mac", proto.clean_mac(d.wifiMac), { persist = true }) end
   if not st.listed then
@@ -300,6 +306,42 @@ local function send_keypad(_, dev, cmd)
   send_keys(dev, { key })
 end
 
+-- Sources by name (setting "Sources"): the Source menu tile or a key sequence per name.
+local function source_list(dev)
+  local s = clean((dev.preferences or {}).sources) == "" and "auto" or tostring((dev.preferences or {}).sources)
+  if s == "auto" then
+    s = (tonumber((dev:get_field("tv_year"))) or 0) >= 2021 and proto.DEFAULT_SOURCES_MENU or proto.DEFAULT_SOURCES_KEYS
+  end
+  return proto.sources(s)
+end
+
+emit_sources = function(dev)
+  local names = {}
+  for _, e in ipairs(source_list(dev)) do names[#names + 1] = e.name end
+  local key = table.concat(names, "|")
+  if dev:get_field("sources_emitted") == key then return end
+  local ok = pcall(function() dev:emit_event(tvsource.supportedSources(names, { visibility = { displayed = false } })) end)
+  if ok then dev:set_field("sources_emitted", key) end
+  if not dev:get_field("source") and names[1] then
+    pcall(function() dev:emit_event(tvsource.source(names[1], { visibility = { displayed = false } })) end)
+  end
+end
+
+local function set_source(_, dev, cmd)
+  local want = tostring(cmd.args.source or "")
+  for _, e in ipairs(source_list(dev)) do
+    if e.name == want then
+      local keys = e.keys or proto.menu_keys(e.pos, tonumber((dev.preferences or {}).menuColumns) or 2)
+      if send_keys(dev, keys, nil, 0.15) then
+        dev:set_field("source", want, { persist = true })
+        pcall(function() dev:emit_event(tvsource.source(want)) end)
+      end
+      return
+    end
+  end
+  log.warn("[tv] unknown source " .. want)
+end
+
 local function handle_refresh(_, dev)
   local st = state[dev.id]
   if not st then return end
@@ -317,12 +359,14 @@ local function device_init(_, dev)
     if p.mac then dev:set_field("mac", p.mac, { persist = true }) end
   end
   dev:online()
-  pcall(function() dev:emit_event(input.supportedInputSources(proto.INPUT_LIST, { visibility = { displayed = false } })) end)
+  dev:set_field("sources_emitted", nil)
+  emit_sources(dev)
+  if dev:get_field("source") then
+    pcall(function() dev:emit_event(tvsource.source(dev:get_field("source"), { visibility = { displayed = false } })) end)
+  end
   pcall(function() dev:emit_event(capabilities.keypadInput.supportedKeyCodes(proto.KEYPAD_LIST, { visibility = { displayed = false } })) end)
   -- The app greys out a control whose attribute never had a value ("has not updated all status data"). The TV
-  -- does not report its input or channel over the LAN, so start with the last one chosen through the driver.
-  local src = dev:get_field("input") or "digitalTv"
-  emit(dev, "input", src, input.inputSource(src, { visibility = { displayed = false } }))
+  -- does not report its channel over the LAN, so start with "-".
   emit(dev, "channel", dev:get_field("last_channel") or "-", channel.tvChannel(dev:get_field("last_channel") or "-",
     { visibility = { displayed = false } }))
   pcall(function() dev:emit_event(channel.tvChannelName("", { visibility = { displayed = false } })) end)
@@ -334,6 +378,7 @@ local function info_changed(_, dev, _event, args)
   if clean(old.ipAddress) ~= clean((dev.preferences or {}).ipAddress) then dev:set_field("ip", nil, { persist = true }) end
   state[dev.id] = state[dev.id] or {}
   state[dev.id].listed = false
+  emit_sources(dev)
   schedule(dev)
 end
 
@@ -388,9 +433,12 @@ local driver = Driver("samsung-tv-local", {
       [mute.commands.setMute.NAME] = function(_, dev, cmd) set_mute(dev, cmd.args.state == "muted") end,
     },
     [input.ID] = { [input.commands.setInputSource.NAME] = set_input },
+    [tvsource.ID] = {
+      [tvsource.commands.setSource.NAME] = set_source,
+      [tvsource.commands.openMenu.NAME] = function(_, dev) send_keys(dev, { "KEY_SOURCE" }) end,
+    },
     [capabilities.keypadInput.ID] = { [capabilities.keypadInput.commands.sendKey.NAME] = send_keypad },
-    -- component "source": a button that opens the TV's Source menu
-    [capabilities.momentary.ID] = { [capabilities.momentary.commands.push.NAME] = function(_, dev) send_keys(dev, { "KEY_SOURCE" }) end },
+
     [channel.ID] = {
       [channel.commands.channelUp.NAME] = function(_, dev) send_keys(dev, { "KEY_CHUP" }) end,
       [channel.commands.channelDown.NAME] = function(_, dev) send_keys(dev, { "KEY_CHDOWN" }) end,

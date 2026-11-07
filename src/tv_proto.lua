@@ -181,6 +181,28 @@ function M.model_year(info)
   if yy then return 2000 + yy end
 end
 
+M.DEFAULT_SOURCES_MENU = "TV=1,HDMI 1=3,HDMI 2=4,HDMI 3=5,HDMI 4=6"
+M.DEFAULT_SOURCES_KEYS = "TV=KEY_TV,HDMI 1=KEY_HDMI1,HDMI 2=KEY_HDMI2,HDMI 3=KEY_HDMI3,HDMI 4=KEY_HDMI4"
+
+--- Source list "Tv=1,PC=3,Sonos Beam=KEY_HDMI3": name = tile number in the Source menu, or a key sequence.
+--- Returns an ordered list of { name, pos } / { name, keys }.
+function M.sources(s)
+  local out = {}
+  for part in tostring(s or ""):gmatch("[^,]+") do
+    local name, val = part:match("^%s*(.-)%s*=%s*(.-)%s*$")
+    if name and name ~= "" and #name <= 40 and #out < 20 then
+      local n = tonumber(val)
+      if n and n >= 1 and n <= 30 and n == math.floor(n) then
+        out[#out + 1] = { name = name, pos = n }
+      else
+        local keys = M.key_sequence(val)
+        if keys then out[#out + 1] = { name = name, keys = keys } end
+      end
+    end
+  end
+  return out
+end
+
 --- Positions in the Source menu, "digitalTv=1,HDMI1=3" -> { digitalTv = 1, HDMI1 = 3 }.
 function M.menu_positions(s)
   local out = {}

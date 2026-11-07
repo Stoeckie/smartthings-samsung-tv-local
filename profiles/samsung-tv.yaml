@@ -8,7 +8,7 @@ components:
         version: 1
       - id: audioMute
         version: 1
-      - id: mediaInputSource
+      - id: silvervalley08660.tvInput
         version: 1
       - id: tvChannel
         version: 1
@@ -18,11 +18,6 @@ components:
         version: 1
     categories:
       - name: Television
-  - id: source
-    label: Source menu
-    capabilities:
-      - id: momentary
-        version: 1
 preferences:
   - name: ipAddress
     title: TV IP address
@@ -58,25 +53,14 @@ preferences:
         tv: TV speakers
         external: Soundbar or receiver
       default: tv
-  - name: inputMethod
-    title: Input switching
-    description: '"Automatic" uses the Source menu for TVs from 2021 on (they ignore the HDMI1..4 keys) and direct keys for older TVs. "Source menu" opens the Source menu and picks the tile at the position set below.'
-    required: false
-    preferenceType: enumeration
-    definition:
-      options:
-        auto: Automatic
-        direct: Direct keys
-        menu: Source menu
-      default: auto
-  - name: menuPositions
-    title: Source menu positions
-    description: Tile number of each input in the Source menu, counting left to right, top to bottom (1 = top left).
+  - name: sources
+    title: Sources
+    description: 'Your sources by name, with their tile number in the Source menu (left to right, top to bottom) or a key sequence, e.g. "Tv=1,PC=3,Sonos Beam=5" or "PC=KEY_HDMI1". "auto": TV and HDMI 1 to 4 (Source menu for TVs from 2021 on, direct keys for older ones).'
     required: false
     preferenceType: string
     definition:
       stringType: text
-      default: "digitalTv=1,HDMI1=3,HDMI2=4,HDMI3=5,HDMI4=6"
+      default: "auto"
   - name: menuColumns
     title: Source menu columns
     required: false

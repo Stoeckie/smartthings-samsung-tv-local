@@ -11,6 +11,8 @@ local function capmock(path)
 end
 local caps = capmock("cap")
 for _, id in ipairs({ "switch", "audioVolume", "audioMute", "mediaInputSource", "tvChannel", "refresh", "keypadInput", "momentary" }) do caps[id].ID = id end
+caps["silvervalley08660.tvInput"].ID = "silvervalley08660.tvInput"
+for _, id in ipairs({}) do caps[id].ID = id end
 package.loaded["st.capabilities"] = caps
 package.loaded["st.driver"] = function(name, tmpl) DRIVER = tmpl; return { run = function() end } end
 LOGS = {}
@@ -151,7 +153,6 @@ def test_manual_then_scan():
 def test_initial_input_and_channel():
     """The app greys out controls whose attribute never had a value: input and channel start with a value."""
     lua = setup()
-    assert ev(lua, "cap.mediaInputSource.inputSource") == b"digitalTv"
     assert ev(lua, "cap.tvChannel.tvChannel") == b"-"
 
 
@@ -217,5 +218,29 @@ def test_source_button():
     lua = setup()
     g = lua.globals()
     lua.execute(b'DEV.fields.token = "tok1"')
-    lua.execute(b'DRIVER.capability_handlers.momentary.push(DRV, DEV, { component = "source", args = {} })')
+    lua.execute(b'DRIVER.capability_handlers["silvervalley08660.tvInput"].openMenu(DRV, DEV, { args = {} })')
     assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_SOURCE"
+
+
+def sev(lua, attr):
+    return lua.eval(f'DEV.events["cap.silvervalley08660.tvInput.{attr}"]'.encode())
+
+
+def test_sources_by_name():
+    lua = setup()
+    g = lua.globals()
+    lua.execute(b'DEV.fields.token = "tok1"; TV.model = "23_OSCP_8K_T09"')
+    lua.execute(b'DRIVER.capability_handlers.refresh.refresh(DRV, DEV)')
+    names = sev(lua, "supportedSources")
+    assert [names[i] for i in range(1, len(names) + 1)] == [b"TV", b"HDMI 1", b"HDMI 2", b"HDMI 3", b"HDMI 4"]
+    lua.execute(b'DEV.preferences.sources = "Tv=1, PC=3 ,Sonos Beam=KEY_HDMI3,bad=x;y"')
+    lua.execute(b'DRIVER.lifecycle_handlers.infoChanged(DRV, DEV, "infoChanged", { old_st_store = { preferences = { ipAddress = "auto" } } })')
+    names = sev(lua, "supportedSources")
+    assert [names[i] for i in range(1, len(names) + 1)] == [b"Tv", b"PC", b"Sonos Beam"]
+    H = b'DRIVER.capability_handlers["silvervalley08660.tvInput"].setSource(DRV, DEV, { args = { source = "%s" } })'
+    lua.execute(H % b"PC")
+    assert g.CALLS[len(g.CALLS)] == (b"keys:tok1:KEY_SOURCE,1500,KEY_UP,KEY_UP,KEY_UP,KEY_UP,KEY_LEFT,KEY_LEFT,"
+                                     b"KEY_DOWN,300,KEY_ENTER")
+    assert sev(lua, "source") == b"PC"
+    lua.execute(H % b"Sonos Beam")
+    assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_HDMI3"
