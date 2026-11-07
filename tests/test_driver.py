@@ -45,7 +45,7 @@ DEVICES = {}
 local function mkdev(o)
   o.fields = {}; o.events = {}; o.status = "offline"; o.preferences = o.preferences or {}
   o.thread = { call_on_schedule = function(_, _, f) POLLFN = f; return 1 end, call_with_delay = function() end, cancel_timer = function() end }
-  function o:get_field(k) return self.fields[k] end
+  function o:get_field(k) if self.fields[k] == nil then return end return self.fields[k] end  -- like the hub: nothing at all
   function o:set_field(k, v) self.fields[k] = v end
   function o:emit_event(e) self.events[e.path] = e.arg == nil and true or e.arg; self.events.n = (self.events.n or 0) + 1 end
   function o:online() self.status = "online" end

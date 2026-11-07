@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-07b"
+local BUILD = "2026-11-07c"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -45,10 +45,10 @@ end
 
 -- With external sound the volume shown is our own count (the soundbar can not be read): keep it persisted.
 local function shown_volume(dev)
-  local v = tonumber(dev:get_field("ext_volume"))
+  local v = tonumber((dev:get_field("ext_volume")))
   if v then return v end
   local ok, st = pcall(function() return dev:get_latest_state("main", "audioVolume", "volume") end)
-  return ok and tonumber(st) or tonumber(dev:get_field("last_volume"))
+  return ok and tonumber(st) or tonumber((dev:get_field("last_volume")))
 end
 
 local function emit(dev, key, value, event)
