@@ -8,11 +8,11 @@ components:
         version: 1
       - id: audioMute
         version: 1
-      - id: silvervalley08660.tvInput
-        version: 1
       - id: tvChannel
         version: 1
       - id: keypadInput
+        version: 1
+      - id: silvervalley08660.tvInput
         version: 1
       - id: refresh
         version: 1

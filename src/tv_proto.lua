@@ -230,7 +230,7 @@ end
 
 -- keypadInput key codes -> remote keys
 M.KEYPAD = { UP = "KEY_UP", DOWN = "KEY_DOWN", LEFT = "KEY_LEFT", RIGHT = "KEY_RIGHT", SELECT = "KEY_ENTER",
-  BACK = "KEY_RETURN", EXIT = "KEY_EXIT", MENU = "KEY_MENU", SETTINGS = "KEY_TOOLS", HOME = "KEY_HOME" }
+  BACK = "KEY_RETURN", EXIT = "KEY_EXIT", MENU = "KEY_MENU", SETTINGS = "KEY_MENU", HOME = "KEY_HOME" }
 for i = 0, 9 do M.KEYPAD["NUMBER" .. i] = "KEY_" .. i end
 M.KEYPAD_LIST = { "UP", "DOWN", "LEFT", "RIGHT", "SELECT", "BACK", "EXIT", "MENU", "SETTINGS", "HOME" }
 
