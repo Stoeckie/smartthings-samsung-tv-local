@@ -144,6 +144,15 @@ function M.channel_keys(ch)
   return keys
 end
 
+--- Volume keys to go from `from` to `to` (at most `max` keys).
+function M.volume_keys(from, to, max)
+  local d = math.floor((tonumber(to) or 0) - (tonumber(from) or 0) + 0.5)
+  local n = math.min(math.abs(d), max or 50)
+  local keys = {}
+  for i = 1, n do keys[i] = d > 0 and "KEY_VOLUP" or "KEY_VOLDOWN" end
+  return keys
+end
+
 function M.valid_key(k)
   k = tostring(k or ""):upper()
   if k:match("^KEY_[%w_]+$") then return k end

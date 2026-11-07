@@ -41,3 +41,13 @@ preferences:
       minimum: 5
       maximum: 300
       default: 10
+  - name: soundOutput
+    title: Sound output
+    description: Choose "Soundbar or receiver" when the sound goes over HDMI ARC/eARC; volume and mute then go as remote control keys (the TV passes them on). The volume shown is then counted from the last value set.
+    required: false
+    preferenceType: enumeration
+    definition:
+      options:
+        tv: TV speakers
+        external: Soundbar or receiver
+      default: tv

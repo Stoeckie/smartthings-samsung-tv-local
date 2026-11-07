@@ -145,3 +145,30 @@ def test_manual_then_scan():
     lua.execute(b'SCAN = { "192.168.1.5", "192.168.1.27" }; DRIVER.capability_handlers.refresh.refresh(DRV, DEV)')
     assert g.DEV.fields[b"ip"] == b"192.168.1.27"
     assert ev(lua, "cap.switch.switch.on") is True
+
+
+def test_initial_input_and_channel():
+    """The app greys out controls whose attribute never had a value: input and channel start with a value."""
+    lua = setup()
+    assert ev(lua, "cap.mediaInputSource.inputSource") == b"digitalTv"
+    assert ev(lua, "cap.tvChannel.tvChannel") == b"-"
+
+
+def test_soundbar_volume_by_keys():
+    """Sound over HDMI ARC (soundbar): volume and mute as remote keys, the TV's own volume is not polled."""
+    lua = setup()
+    g = lua.globals()
+    lua.execute(b'DEV.fields.token = "tok1"; DEV.preferences.soundOutput = "external"')
+    lua.execute(b'DEV.get_latest_state = function() return 38 end')   # value the app shows
+    lua.execute(b'TV.volume = 10; CALLS = {}; POLLFN()')
+    assert not any(c.startswith(b"GetVolume") for c in g.CALLS.values())
+    lua.execute(b'DRIVER.capability_handlers.audioVolume.setVolume(DRV, DEV, { args = { volume = 41 } })')
+    assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_VOLUP,KEY_VOLUP,KEY_VOLUP"
+    assert ev(lua, "cap.audioVolume.volume") == 41
+    lua.execute(b'DRIVER.capability_handlers.audioVolume.volumeDown(DRV, DEV)')
+    assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_VOLDOWN" and ev(lua, "cap.audioVolume.volume") == 40
+    lua.execute(b'DRIVER.capability_handlers.audioMute.setMute(DRV, DEV, { args = { state = "muted" } })')
+    assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_MUTE"
+    n = len(g.CALLS)
+    lua.execute(b'DRIVER.capability_handlers.audioMute.mute(DRV, DEV)')   # already muted: no toggle
+    assert len(g.CALLS) == n

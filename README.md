@@ -20,6 +20,7 @@ SmartThings Edge driver for Samsung Tizen TVs (2016 and later). It runs on your 
    * **IP address**: leave on `auto` unless discovery fails.
    * **MAC address**: leave on `auto`. It is read from the TV, which gives the wifi MAC. If your TV is on a network cable, enter the MAC of the wired port for wake-on-LAN.
    * **Poll interval**: 10 s by default.
+   * **Sound output**: choose **Soundbar or receiver** when the sound goes over HDMI ARC/eARC. Volume and mute then go as remote control keys, which the TV passes on to the soundbar. The soundbar volume can not be read, so the volume shown is counted from the last value set (a change with the soundbar's own remote is not seen).
 
 The pairing token the TV gives stays on your hub, in a device field.
 
@@ -28,6 +29,7 @@ The pairing token the TV gives stays on your hub, in a device field.
 * **Volume and mute:** UPnP RenderingControl on port 9197.
 * **Keys:** remote control websocket on `wss://<tv>:8002/api/v2/channels/samsung.remote.control`. The TV uses a self-signed certificate, so it is not verified (LAN only).
 * **If the TV said Deny:** go to **Settings > General > External Device Manager > Device Connection Manager > Device List**. Remove or allow "SmartThings Hub" there.
+* **Input and channel start with a value** (the last input chosen through the driver, otherwise TV): the TV does not report them over the LAN, and the app greys out a control that never had a value.
 * **The input list is fixed** (HDMI1 to HDMI4, TV) because the keys are HDMI1 to HDMI4. The current input is the last one chosen through this driver.
 * **Tested on:** a 2023 Neo QLED (QN900C).
 

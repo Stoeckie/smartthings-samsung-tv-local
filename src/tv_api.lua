@@ -144,14 +144,14 @@ function M.ws_close(conn)
   pcall(function() conn.sock:close() end)
 end
 
---- Send keys. Returns token (possibly new) or nil, err.
-function M.keys(host, token, keys, wait)
+--- Send keys (gap = seconds between keys, default 0.4). Returns token (possibly new) or nil, err.
+function M.keys(host, token, keys, wait, gap)
   local conn, tok = M.ws_open(host, token, wait)
   if not conn then return nil, tok end
   for i, k in ipairs(keys) do
     local ok, err = M.ws_send_key(conn, k)
     if not ok then M.ws_close(conn); return nil, "send key: " .. tostring(err) end
-    if i < #keys then socket.sleep(0.4) end
+    if i < #keys then socket.sleep(gap or 0.4) end
   end
   socket.sleep(0.3)
   M.ws_close(conn)

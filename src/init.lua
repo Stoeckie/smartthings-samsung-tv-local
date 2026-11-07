@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-06b"
+local BUILD = "2026-11-07a"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -37,6 +37,20 @@ local function settings(dev)
   return host, mac
 end
 
+-- Sound through a soundbar or receiver (HDMI ARC/eARC): the TV's own (UPnP) volume does nothing there, so
+-- volume and mute go as remote control keys, which the TV passes on over HDMI-CEC.
+local function external_sound(dev)
+  return tostring((dev.preferences or {}).soundOutput or "tv") == "external"
+end
+
+-- With external sound the volume shown is our own count (the soundbar can not be read): keep it persisted.
+local function shown_volume(dev)
+  local v = tonumber(dev:get_field("ext_volume"))
+  if v then return v end
+  local ok, st = pcall(function() return dev:get_latest_state("main", "audioVolume", "volume") end)
+  return ok and tonumber(st) or tonumber(dev:get_field("last_volume"))
+end
+
 local function emit(dev, key, value, event)
   if dev:get_field("last_" .. key) == value then return end
   local ok, err = pcall(function() dev:emit_event(event) end)
@@ -50,10 +64,10 @@ local function save_token(dev, tok)
   end
 end
 
-local function send_keys(dev, keys, wait)
+local function send_keys(dev, keys, wait, gap)
   local host = settings(dev)
   if host == "" then log.warn("[tv] " .. tostring(dev.label) .. ": no IP address yet"); return false end
-  local tok, err = api.keys(host, dev:get_field("token"), keys, wait or 30)
+  local tok, err = api.keys(host, dev:get_field("token"), keys, wait or 30, gap)
   if not tok then
     log.warn("[tv] " .. tostring(dev.label) .. " " .. table.concat(keys, ",") .. ": " .. tostring(err))
     return false
@@ -131,10 +145,12 @@ local function poll_once(dev, st)
   local power = proto.power(info)
   emit(dev, "switch", power == "on" and "on" or "off", power == "on" and switch.switch.on() or switch.switch.off())
   if power ~= "on" then return end
-  local vol = tonumber(proto.xml_value(api.soap(host, "GetVolume") or "", "CurrentVolume"))
-  if vol then emit(dev, "volume", vol, volume.volume(vol)) end
-  local m = proto.xml_value(api.soap(host, "GetMute") or "", "CurrentMute")
-  if m then emit(dev, "mute", m, m == "1" and mute.mute.muted() or mute.mute.unmuted()) end
+  if not external_sound(dev) then
+    local vol = tonumber(proto.xml_value(api.soap(host, "GetVolume") or "", "CurrentVolume"))
+    if vol then emit(dev, "volume", vol, volume.volume(vol)) end
+    local m = proto.xml_value(api.soap(host, "GetMute") or "", "CurrentMute")
+    if m then emit(dev, "mute", m, m == "1" and mute.mute.muted() or mute.mute.unmuted()) end
+  end
   if not dev:get_field("token") and (st.tries or 0) < PAIR_TRIES
       and (os.time() - (st.asked_at or 0) >= PAIR_EVERY or st.pair_now) then
     st.pair_now = false
@@ -189,9 +205,21 @@ local function turn_off(_, dev)
   soon(dev)
 end
 
+local MAX_VOLUME_KEYS = 50
+
 local function set_volume(_, dev, cmd)
   local v = math.max(0, math.min(100, math.floor((tonumber(cmd.args.volume) or 0) + 0.5)))
   local host = settings(dev)
+  if external_sound(dev) then
+    -- the soundbar volume can not be read: step from the last value shown
+    local cur = shown_volume(dev) or v
+    local keys = proto.volume_keys(cur, v, MAX_VOLUME_KEYS)
+    if #keys == 0 or send_keys(dev, keys, nil, 0.15) then
+      dev:set_field("ext_volume", v, { persist = true })
+      emit(dev, "volume", v, volume.volume(v))
+    end
+    return
+  end
   if api.soap(host, "SetVolume", "<DesiredVolume>" .. v .. "</DesiredVolume>") then
     emit(dev, "volume", v, volume.volume(v))
   else
@@ -200,12 +228,28 @@ local function set_volume(_, dev, cmd)
 end
 
 local function step_volume(dev, up)
-  send_keys(dev, { up and "KEY_VOLUP" or "KEY_VOLDOWN" })
+  local ok = send_keys(dev, { up and "KEY_VOLUP" or "KEY_VOLDOWN" })
+  if ok and external_sound(dev) then
+    local cur = shown_volume(dev)
+    if cur then
+      local v = math.max(0, math.min(100, cur + (up and 1 or -1)))
+      dev:set_field("ext_volume", v, { persist = true })
+      emit(dev, "volume", v, volume.volume(v))
+    end
+  end
   soon(dev)
 end
 
 local function set_mute(dev, on)
   local host = settings(dev)
+  if external_sound(dev) then
+    -- KEY_MUTE toggles: only send it when the state shown differs
+    if (dev:get_field("last_mute") == "1") == on then return end
+    if send_keys(dev, { "KEY_MUTE" }) then
+      emit(dev, "mute", on and "1" or "0", on and mute.mute.muted() or mute.mute.unmuted())
+    end
+    return
+  end
   if api.soap(host, "SetMute", "<DesiredMute>" .. (on and 1 or 0) .. "</DesiredMute>") then
     emit(dev, "mute", on and "1" or "0", on and mute.mute.muted() or mute.mute.unmuted())
   else
@@ -217,7 +261,10 @@ local function set_input(_, dev, cmd)
   local src = tostring(cmd.args.mode or "")
   local key = proto.INPUTS[src]
   if not key then log.warn("[tv] unknown input " .. src); return end
-  if send_keys(dev, { key }) then emit(dev, "input", src, input.inputSource(src)) end
+  if send_keys(dev, { key }) then
+    dev:set_field("input", src, { persist = true })
+    emit(dev, "input", src, input.inputSource(src))
+  end
 end
 
 local function set_channel(_, dev, cmd)
@@ -244,6 +291,13 @@ local function device_init(_, dev)
   end
   dev:online()
   pcall(function() dev:emit_event(input.supportedInputSources(proto.INPUT_LIST, { visibility = { displayed = false } })) end)
+  -- The app greys out a control whose attribute never had a value ("has not updated all status data"). The TV
+  -- does not report its input or channel over the LAN, so start with the last one chosen through the driver.
+  local src = dev:get_field("input") or "digitalTv"
+  emit(dev, "input", src, input.inputSource(src, { visibility = { displayed = false } }))
+  emit(dev, "channel", dev:get_field("last_channel") or "-", channel.tvChannel(dev:get_field("last_channel") or "-",
+    { visibility = { displayed = false } }))
+  pcall(function() dev:emit_event(channel.tvChannelName("", { visibility = { displayed = false } })) end)
   schedule(dev)
 end
 
