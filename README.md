@@ -30,6 +30,9 @@ The pairing token the TV gives stays on your hub, in a device field.
 * **Keys:** remote control websocket on `wss://<tv>:8002/api/v2/channels/samsung.remote.control`. The TV uses a self-signed certificate, so it is not verified (LAN only).
 * **If the TV said Deny:** go to **Settings > General > External Device Manager > Device Connection Manager > Device List**. Remove or allow "SmartThings Hub" there.
 * **Input and channel start with a value** (the last input chosen through the driver, otherwise TV): the TV does not report them over the LAN, and the app greys out a control that never had a value.
+* **Newer TVs (2021 and later) ignore the HDMI1..4 keys.** Set **Input switching** to **Source menu**: the driver then opens the Source menu, goes to the top left tile and on to the tile of the input (setting **Source menu positions**, counted left to right, top to bottom; default TV = 1, HDMI1 = 3). Check the order in your own Source menu: it only shows connected devices (and items like screen mirroring).
+* **Remote keys:** arrows, OK, back, exit, menu, settings, home and numbers (keypadInput). In a routine, "set channel" also takes a key sequence such as `KEY_SOURCE+800+KEY_RIGHT+KEY_ENTER` (pauses in ms).
+* **The remote control channel stays open** between commands and closes after 2 minutes without keys, so keys go through without delay.
 * **The input list is fixed** (HDMI1 to HDMI4, TV) because the keys are HDMI1 to HDMI4. The current input is the last one chosen through this driver.
 * **Tested on:** a 2023 Neo QLED (QN900C).
 

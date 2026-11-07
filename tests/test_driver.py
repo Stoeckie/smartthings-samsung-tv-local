@@ -185,3 +185,16 @@ def test_key_sequence_and_keypad():
     n = len(g.CALLS)
     lua.execute(b'DRIVER.capability_handlers.tvChannel.setTvChannel(DRV, DEV, { args = { tvChannel = "KEY_X;rm" } })')
     assert len(g.CALLS) == n   # invalid: nothing sent
+
+
+def test_input_by_source_menu():
+    lua = setup()
+    g = lua.globals()
+    lua.execute(b'DEV.fields.token = "tok1"; DEV.preferences.inputMethod = "menu"')
+    lua.execute(b'DRIVER.capability_handlers.mediaInputSource.setInputSource(DRV, DEV, { args = { mode = "HDMI1" } })')
+    assert g.CALLS[len(g.CALLS)] == (b"keys:tok1:KEY_SOURCE,1500,KEY_UP,KEY_UP,KEY_UP,KEY_UP,KEY_LEFT,KEY_LEFT,"
+                                     b"KEY_DOWN,300,KEY_ENTER")
+    assert ev(lua, "cap.mediaInputSource.inputSource") == b"HDMI1"
+    lua.execute(b'DEV.preferences.menuPositions = "HDMI1=4"')
+    lua.execute(b'DRIVER.capability_handlers.mediaInputSource.setInputSource(DRV, DEV, { args = { mode = "HDMI1" } })')
+    assert g.CALLS[len(g.CALLS)].endswith(b"KEY_LEFT,KEY_LEFT,KEY_DOWN,KEY_RIGHT,300,KEY_ENTER")

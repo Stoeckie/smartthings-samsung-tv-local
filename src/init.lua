@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-07e"
+local BUILD = "2026-11-07f"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -264,7 +264,15 @@ local function set_input(_, dev, cmd)
   local src = tostring(cmd.args.mode or "")
   local key = proto.INPUTS[src]
   if not key then log.warn("[tv] unknown input " .. src); return end
-  if send_keys(dev, { key }) then
+  local p = dev.preferences or {}
+  local keys = { key }
+  if tostring(p.inputMethod or "direct") == "menu" then
+    -- newer TVs ignore KEY_HDMI1..4: pick the tile in the Source menu instead
+    local pos = proto.menu_positions(p.menuPositions or "digitalTv=1,HDMI1=3,HDMI2=4,HDMI3=5,HDMI4=6")[src]
+    if not pos then log.warn("[tv] " .. src .. " has no position in the Source menu setting"); return end
+    keys = proto.menu_keys(pos, tonumber(p.menuColumns) or 2)
+  end
+  if send_keys(dev, keys, nil, 0.15) then
     dev:set_field("input", src, { persist = true })
     emit(dev, "input", src, input.inputSource(src))
   end

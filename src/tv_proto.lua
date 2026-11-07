@@ -174,6 +174,31 @@ function M.key_sequence(s)
   return out
 end
 
+--- Positions in the Source menu, "digitalTv=1,HDMI1=3" -> { digitalTv = 1, HDMI1 = 3 }.
+function M.menu_positions(s)
+  local out = {}
+  for name, pos in tostring(s or ""):gmatch("([%w]+)%s*=%s*(%d+)") do
+    local n = tonumber(pos)
+    if M.INPUTS[name] and n and n >= 1 and n <= 20 then out[name] = n end
+  end
+  return out
+end
+
+--- Keys to pick tile `pos` (1 = top left, reading order) in the Source menu grid of `cols` columns:
+--- open the menu, go to the top left corner (extra presses stop at the edge), then down and right, OK.
+function M.menu_keys(pos, cols, open_ms)
+  cols = cols or 2
+  local keys = { "KEY_SOURCE", open_ms or 1500 }
+  for _ = 1, 4 do keys[#keys + 1] = "KEY_UP" end
+  for _ = 1, cols do keys[#keys + 1] = "KEY_LEFT" end
+  local row, col = (pos - 1) // cols, (pos - 1) % cols
+  for _ = 1, row do keys[#keys + 1] = "KEY_DOWN" end
+  for _ = 1, col do keys[#keys + 1] = "KEY_RIGHT" end
+  keys[#keys + 1] = 300
+  keys[#keys + 1] = "KEY_ENTER"
+  return keys
+end
+
 -- keypadInput key codes -> remote keys
 M.KEYPAD = { UP = "KEY_UP", DOWN = "KEY_DOWN", LEFT = "KEY_LEFT", RIGHT = "KEY_RIGHT", SELECT = "KEY_ENTER",
   BACK = "KEY_RETURN", EXIT = "KEY_EXIT", MENU = "KEY_MENU", SETTINGS = "KEY_TOOLS", HOME = "KEY_HOME" }

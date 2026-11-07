@@ -53,3 +53,29 @@ preferences:
         tv: TV speakers
         external: Soundbar or receiver
       default: tv
+  - name: inputMethod
+    title: Input switching
+    description: '"Direct keys" sends HDMI1..4 / TV keys (older TVs). Newer TVs (2021 and later) ignore those; "Source menu" opens the Source menu and picks the tile at the position set below.'
+    required: false
+    preferenceType: enumeration
+    definition:
+      options:
+        direct: Direct keys
+        menu: Source menu
+      default: direct
+  - name: menuPositions
+    title: Source menu positions
+    description: Tile number of each input in the Source menu, counting left to right, top to bottom (1 = top left).
+    required: false
+    preferenceType: string
+    definition:
+      stringType: text
+      default: "digitalTv=1,HDMI1=3,HDMI2=4,HDMI3=5,HDMI4=6"
+  - name: menuColumns
+    title: Source menu columns
+    required: false
+    preferenceType: integer
+    definition:
+      minimum: 1
+      maximum: 8
+      default: 2
