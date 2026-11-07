@@ -146,24 +146,67 @@ function M.ws_close(conn)
   pcall(function() conn.sock:close() end)
 end
 
---- Send keys (gap = seconds between keys, default 0.4). Returns token (possibly new) or nil, err.
-function M.keys(host, token, keys, wait, gap)
-  local conn, tok = M.ws_open(host, token, wait)
-  if not conn then return nil, tok end
+-- The remote control channel stays open between commands (opening it costs 1 to 3 s: TCP, TLS, websocket,
+-- ms.channel.connect/ready). A reader answers pings and closes it after IDLE seconds without keys.
+M.IDLE = 120
+local chans = {} -- host -> { conn, alive, used }
+
+local function start_reader(host, ch)
+  local cosock = require "cosock"
+  cosock.spawn(function()
+    while ch.alive do
+      ch.conn.sock:settimeout(20)
+      local op, data = proto.ws_read(function(n) return ch.conn.sock:receive(n) end)
+      if not op then
+        if data ~= "timeout" or socket.gettime() - ch.used > M.IDLE then break end
+      elseif op == 8 then
+        break
+      elseif op == 9 then
+        pcall(function() ch.conn.sock:send(proto.ws_frame(data, 10)) end)
+      end
+    end
+    ch.alive = false
+    M.ws_close(ch.conn)
+    if chans[host] == ch then chans[host] = nil end
+  end, "tv-ws-reader")
+end
+
+local function send_seq(conn, keys, gap)
   for i, k in ipairs(keys) do
     if type(k) == "number" then
       socket.sleep(k / 1000)  -- a pause in a key sequence (ms)
     else
       local ok, err = M.ws_send_key(conn, k)
-      if not ok then M.ws_close(conn); return nil, "send key: " .. tostring(err) end
+      if not ok then return nil, "send key: " .. tostring(err) end
       if i < #keys and type(keys[i + 1]) ~= "number" then socket.sleep(gap or 0.4) end
     end
   end
-  -- Keep the channel open for a moment: a TV may drop keys when the connection closes right after them,
-  -- and anything it answers (an error, a new token) is read and reported.
-  M.events = M.drain(conn, M.LINGER)
-  M.ws_close(conn)
-  return tok or ""
+  return true
+end
+
+--- Send keys (gap = seconds between keys, default 0.4) over the open channel, opening it when needed.
+--- Returns token (possibly new) or nil, err.
+function M.keys(host, token, keys, wait, gap)
+  local tok = token
+  for attempt = 1, 2 do
+    local ch = chans[host]
+    if not (ch and ch.alive) then
+      local conn, t = M.ws_open(host, token, wait)
+      if not conn then return nil, t end
+      tok = t
+      ch = { conn = conn, alive = true, used = socket.gettime() }
+      chans[host] = ch
+      start_reader(host, ch)
+    end
+    ch.used = socket.gettime()
+    local ok, err = send_seq(ch.conn, keys, gap)
+    if ok then return tok or "" end
+    -- the TV closed the channel meanwhile (standby): open a new one and try once more
+    ch.alive = false
+    M.ws_close(ch.conn)
+    chans[host] = nil
+    if attempt == 2 then return nil, err end
+  end
 end
 
 M.LINGER = 1.0
