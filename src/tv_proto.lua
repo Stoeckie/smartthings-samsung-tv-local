@@ -153,6 +153,33 @@ function M.volume_keys(from, to, max)
   return keys
 end
 
+--- Key sequence "KEY_SOURCE+800+KEY_RIGHT+KEY_ENTER": keys and pauses in ms. Returns a list or nil.
+function M.key_sequence(s)
+  s = tostring(s or ""):gsub("%s", "")
+  if s == "" or #s > 300 then return nil end
+  local out = {}
+  for part in s:gmatch("[^+]+") do
+    local ms = tonumber(part)
+    if ms then
+      if ms < 0 or ms > 5000 then return nil end
+      out[#out + 1] = ms
+    else
+      local k = M.valid_key(part)
+      if not k then return nil end
+      out[#out + 1] = k
+    end
+    if #out > 30 then return nil end
+  end
+  if #out == 0 then return nil end
+  return out
+end
+
+-- keypadInput key codes -> remote keys
+M.KEYPAD = { UP = "KEY_UP", DOWN = "KEY_DOWN", LEFT = "KEY_LEFT", RIGHT = "KEY_RIGHT", SELECT = "KEY_ENTER",
+  BACK = "KEY_RETURN", EXIT = "KEY_EXIT", MENU = "KEY_MENU", SETTINGS = "KEY_TOOLS", HOME = "KEY_HOME" }
+for i = 0, 9 do M.KEYPAD["NUMBER" .. i] = "KEY_" .. i end
+M.KEYPAD_LIST = { "UP", "DOWN", "LEFT", "RIGHT", "SELECT", "BACK", "EXIT", "MENU", "SETTINGS", "HOME" }
+
 function M.valid_key(k)
   k = tostring(k or ""):upper()
   if k:match("^KEY_[%w_]+$") then return k end

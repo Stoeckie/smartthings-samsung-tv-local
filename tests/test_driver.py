@@ -10,7 +10,7 @@ local function capmock(path)
     __call = function(_, a) return { path = path, arg = a } end })
 end
 local caps = capmock("cap")
-for _, id in ipairs({ "switch", "audioVolume", "audioMute", "mediaInputSource", "tvChannel", "refresh" }) do caps[id].ID = id end
+for _, id in ipairs({ "switch", "audioVolume", "audioMute", "mediaInputSource", "tvChannel", "refresh", "keypadInput" }) do caps[id].ID = id end
 package.loaded["st.capabilities"] = caps
 package.loaded["st.driver"] = function(name, tmpl) DRIVER = tmpl; return { run = function() end } end
 LOGS = {}
@@ -172,3 +172,16 @@ def test_soundbar_volume_by_keys():
     n = len(g.CALLS)
     lua.execute(b'DRIVER.capability_handlers.audioMute.mute(DRV, DEV)')   # already muted: no toggle
     assert len(g.CALLS) == n
+
+
+def test_key_sequence_and_keypad():
+    lua = setup()
+    g = lua.globals()
+    lua.execute(b'DEV.fields.token = "tok1"')
+    lua.execute(b'DRIVER.capability_handlers.tvChannel.setTvChannel(DRV, DEV, { args = { tvChannel = "key_source+800+KEY_RIGHT" } })')
+    assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_SOURCE,800,KEY_RIGHT"
+    lua.execute(b'DRIVER.capability_handlers.keypadInput.sendKey(DRV, DEV, { args = { keyCode = "LEFT" } })')
+    assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_LEFT"
+    n = len(g.CALLS)
+    lua.execute(b'DRIVER.capability_handlers.tvChannel.setTvChannel(DRV, DEV, { args = { tvChannel = "KEY_X;rm" } })')
+    assert len(g.CALLS) == n   # invalid: nothing sent

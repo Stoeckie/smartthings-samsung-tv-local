@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-07c"
+local BUILD = "2026-11-07d"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -271,9 +271,18 @@ local function set_input(_, dev, cmd)
 end
 
 local function set_channel(_, dev, cmd)
+  -- a key sequence instead of a number ("KEY_SOURCE+800+KEY_RIGHT"): sent as remote keys, e.g. from a routine
+  local seq = tostring(cmd.args.tvChannel or ""):upper():find("KEY_", 1, true) and proto.key_sequence(cmd.args.tvChannel)
+  if seq then send_keys(dev, seq); return end
   local keys = proto.channel_keys(cmd.args.tvChannel)
   if not keys then log.warn("[tv] channel must be a number: " .. tostring(cmd.args.tvChannel)); return end
   if send_keys(dev, keys) then emit(dev, "channel", tostring(cmd.args.tvChannel), channel.tvChannel(tostring(cmd.args.tvChannel))) end
+end
+
+local function send_keypad(_, dev, cmd)
+  local key = proto.KEYPAD[tostring(cmd.args.keyCode or "")]
+  if not key then log.warn("[tv] unknown key " .. tostring(cmd.args.keyCode)); return end
+  send_keys(dev, { key })
 end
 
 local function handle_refresh(_, dev)
@@ -294,6 +303,7 @@ local function device_init(_, dev)
   end
   dev:online()
   pcall(function() dev:emit_event(input.supportedInputSources(proto.INPUT_LIST, { visibility = { displayed = false } })) end)
+  pcall(function() dev:emit_event(capabilities.keypadInput.supportedKeyCodes(proto.KEYPAD_LIST, { visibility = { displayed = false } })) end)
   -- The app greys out a control whose attribute never had a value ("has not updated all status data"). The TV
   -- does not report its input or channel over the LAN, so start with the last one chosen through the driver.
   local src = dev:get_field("input") or "digitalTv"
@@ -363,6 +373,7 @@ local driver = Driver("samsung-tv-local", {
       [mute.commands.setMute.NAME] = function(_, dev, cmd) set_mute(dev, cmd.args.state == "muted") end,
     },
     [input.ID] = { [input.commands.setInputSource.NAME] = set_input },
+    [capabilities.keypadInput.ID] = { [capabilities.keypadInput.commands.sendKey.NAME] = send_keypad },
     [channel.ID] = {
       [channel.commands.channelUp.NAME] = function(_, dev) send_keys(dev, { "KEY_CHUP" }) end,
       [channel.commands.channelDown.NAME] = function(_, dev) send_keys(dev, { "KEY_CHDOWN" }) end,
