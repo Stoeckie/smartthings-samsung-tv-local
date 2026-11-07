@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-07f"
+local BUILD = "2026-11-07g"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -137,6 +137,8 @@ local function poll_once(dev, st)
     return
   end
   st.misses, st.warned = 0, false
+  local year = proto.model_year(info)
+  if year and dev:get_field("tv_year") ~= year then dev:set_field("tv_year", year, { persist = true }) end
   local d = info.device or {}
   if not mac and proto.clean_mac(d.wifiMac) then dev:set_field("mac", proto.clean_mac(d.wifiMac), { persist = true }) end
   if not st.listed then
@@ -266,7 +268,12 @@ local function set_input(_, dev, cmd)
   if not key then log.warn("[tv] unknown input " .. src); return end
   local p = dev.preferences or {}
   local keys = { key }
-  if tostring(p.inputMethod or "direct") == "menu" then
+  local method = tostring(p.inputMethod or "auto")
+  if method == "auto" then
+    -- TVs from 2021 on ignore the HDMI1..4 keys
+    method = (tonumber((dev:get_field("tv_year"))) or 0) >= 2021 and "menu" or "direct"
+  end
+  if method == "menu" then
     -- newer TVs ignore KEY_HDMI1..4: pick the tile in the Source menu instead
     local pos = proto.menu_positions(p.menuPositions or "digitalTv=1,HDMI1=3,HDMI2=4,HDMI3=5,HDMI4=6")[src]
     if not pos then log.warn("[tv] " .. src .. " has no position in the Source menu setting"); return end

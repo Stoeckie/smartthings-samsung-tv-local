@@ -174,6 +174,13 @@ function M.key_sequence(s)
   return out
 end
 
+--- Model year from /api/v2/ device.model ("23_OSCP_8K_T09" -> 2023), or nil.
+function M.model_year(info)
+  local m = type(info) == "table" and type(info.device) == "table" and tostring(info.device.model or "") or ""
+  local yy = tonumber(m:match("^(%d%d)_"))
+  if yy then return 2000 + yy end
+end
+
 --- Positions in the Source menu, "digitalTv=1,HDMI1=3" -> { digitalTv = 1, HDMI1 = 3 }.
 function M.menu_positions(s)
   local out = {}

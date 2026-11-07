@@ -27,6 +27,7 @@ package.loaded["tv_api"] = {
   info = function(ip)
     if TV.power == "off" or ip ~= "192.168.1.27" then return nil end
     return { device = { type = "Samsung SmartTV", name = "[TV] Samsung Q65", modelName = "QE65", PowerState = TV.power,
+      model = TV.model,
       wifiMac = "AA:BB:CC:DD:EE:FF" } } end,
   soap = function(ip, action, args)
     CALLS[#CALLS + 1] = action .. (args or "")
@@ -198,3 +199,15 @@ def test_input_by_source_menu():
     lua.execute(b'DEV.preferences.menuPositions = "HDMI1=4"')
     lua.execute(b'DRIVER.capability_handlers.mediaInputSource.setInputSource(DRV, DEV, { args = { mode = "HDMI1" } })')
     assert g.CALLS[len(g.CALLS)].endswith(b"KEY_LEFT,KEY_LEFT,KEY_DOWN,KEY_RIGHT,300,KEY_ENTER")
+
+
+def test_input_auto_by_model_year():
+    lua = setup()
+    g = lua.globals()
+    lua.execute(b'DEV.fields.token = "tok1"; TV.model = "23_OSCP_8K_T09"')
+    lua.execute(b'DRIVER.capability_handlers.refresh.refresh(DRV, DEV)')
+    lua.execute(b'DRIVER.capability_handlers.mediaInputSource.setInputSource(DRV, DEV, { args = { mode = "HDMI1" } })')
+    assert g.CALLS[len(g.CALLS)].startswith(b"keys:tok1:KEY_SOURCE,1500")
+    lua.execute(b'DEV.fields.tv_year = 2019')
+    lua.execute(b'DRIVER.capability_handlers.mediaInputSource.setInputSource(DRV, DEV, { args = { mode = "HDMI1" } })')
+    assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_HDMI1"

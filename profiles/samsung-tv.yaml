@@ -55,14 +55,15 @@ preferences:
       default: tv
   - name: inputMethod
     title: Input switching
-    description: '"Direct keys" sends HDMI1..4 / TV keys (older TVs). Newer TVs (2021 and later) ignore those; "Source menu" opens the Source menu and picks the tile at the position set below.'
+    description: '"Automatic" uses the Source menu for TVs from 2021 on (they ignore the HDMI1..4 keys) and direct keys for older TVs. "Source menu" opens the Source menu and picks the tile at the position set below.'
     required: false
     preferenceType: enumeration
     definition:
       options:
+        auto: Automatic
         direct: Direct keys
         menu: Source menu
-      default: direct
+      default: auto
   - name: menuPositions
     title: Source menu positions
     description: Tile number of each input in the Source menu, counting left to right, top to bottom (1 = top left).
