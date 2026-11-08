@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-08c"
+local BUILD = "2026-11-08d"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -331,6 +331,15 @@ end
 
 local function set_source(_, dev, cmd)
   local want = tostring(cmd.args.source or "")
+  -- the app sends the shown source again when the list is opened and closed without a choice: do nothing
+  -- then (it would open the Source menu); the Source menu row still opens the menu on purpose
+  local list = source_list(dev)
+  local shown = dev:get_field("source") or (list[1] and list[1].name)
+  if want == shown then
+    log.info("[tv] " .. tostring(dev.label) .. ": source already " .. want .. ", nothing sent")
+    pcall(function() dev:emit_event(tvsource.source(want)) end)
+    return
+  end
   for _, e in ipairs(source_list(dev)) do
     if e.name == want then
       local keys = e.keys or proto.menu_keys(e.pos, tonumber((dev.preferences or {}).menuColumns) or 2)

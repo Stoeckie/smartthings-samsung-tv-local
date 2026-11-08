@@ -248,3 +248,6 @@ def test_sources_by_name():
     assert sev(lua, "source") == b"PC"
     lua.execute(H % b"Sonos Beam")
     assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_HDMI3"
+    n = len(g.CALLS)
+    lua.execute(H % b"Sonos Beam")   # list opened and closed without a choice: the shown source again
+    assert len(g.CALLS) == n
