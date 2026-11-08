@@ -12,6 +12,7 @@ end
 local caps = capmock("cap")
 for _, id in ipairs({ "switch", "audioVolume", "audioMute", "mediaInputSource", "tvChannel", "refresh", "keypadInput", "momentary" }) do caps[id].ID = id end
 caps["silvervalley08660.tvInput"].ID = "silvervalley08660.tvInput"
+caps["silvervalley08660.tvSourceMenu"].ID = "silvervalley08660.tvSourceMenu"
 for _, id in ipairs({}) do caps[id].ID = id end
 package.loaded["st.capabilities"] = caps
 package.loaded["st.driver"] = function(name, tmpl) DRIVER = tmpl; return { run = function() end } end
@@ -220,6 +221,9 @@ def test_source_button():
     lua.execute(b'DEV.fields.token = "tok1"')
     lua.execute(b'DRIVER.capability_handlers["silvervalley08660.tvInput"].openMenu(DRV, DEV, { args = {} })')
     assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_SOURCE"
+    lua.execute(b'DRIVER.capability_handlers["silvervalley08660.tvSourceMenu"].openMenu(DRV, DEV, { args = {} })')
+    assert g.CALLS[len(g.CALLS)] == b"keys:tok1:KEY_SOURCE"
+    assert lua.eval(b'DEV.events["cap.silvervalley08660.tvSourceMenu.menu"]') in (b"open", b"closed")
 
 
 def sev(lua, attr):

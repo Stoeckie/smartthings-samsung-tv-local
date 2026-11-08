@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-08b"
+local BUILD = "2026-11-08c"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -18,6 +18,8 @@ local volume = capabilities.audioVolume
 local mute = capabilities.audioMute
 local input = capabilities.mediaInputSource
 local tvsource = capabilities["silvervalley08660.tvInput"]
+local tvmenu = capabilities["silvervalley08660.tvSourceMenu"] -- own "Source menu" row: state + switch
+local open_menu
 local emit_sources -- defined below, used by the poll
 local channel = capabilities.tvChannel
 
@@ -365,6 +367,7 @@ local function device_init(_, dev)
     pcall(function() dev:emit_event(tvsource.source(dev:get_field("source"), { visibility = { displayed = false } })) end)
   end
   pcall(function() dev:emit_event(capabilities.keypadInput.supportedKeyCodes(proto.KEYPAD_LIST, { visibility = { displayed = false } })) end)
+  pcall(function() dev:emit_event(tvmenu.menu("closed")) end)
   -- The app greys out a control whose attribute never had a value ("has not updated all status data"). The TV
   -- does not report its channel over the LAN, so start with "-".
   emit(dev, "channel", dev:get_field("last_channel") or "-", channel.tvChannel(dev:get_field("last_channel") or "-",
@@ -416,6 +419,15 @@ local function discovery(driver, _opts, _should_continue)
   end
 end
 
+--- Source menu: KEY_SOURCE, shown as "Open" for a few seconds (the TV closes the menu itself)
+open_menu = function(_, dev)
+  send_keys(dev, { "KEY_SOURCE" })
+  pcall(function() dev:emit_event(tvmenu.menu("open")) end)
+  pcall(function()
+    dev.thread:call_with_delay(6, function() pcall(function() dev:emit_event(tvmenu.menu("closed")) end) end)
+  end)
+end
+
 local driver = Driver("samsung-tv-local", {
   discovery = discovery,
   lifecycle_handlers = { init = device_init, added = device_init, infoChanged = info_changed, removed = device_removed },
@@ -435,7 +447,10 @@ local driver = Driver("samsung-tv-local", {
     [input.ID] = { [input.commands.setInputSource.NAME] = set_input },
     [tvsource.ID] = {
       [tvsource.commands.setSource.NAME] = set_source,
-      [tvsource.commands.openMenu.NAME] = function(_, dev) send_keys(dev, { "KEY_SOURCE" }) end,
+      [tvsource.commands.openMenu.NAME] = function(drv, dev) open_menu(drv, dev) end,
+    },
+    [tvmenu.ID] = {
+      [tvmenu.commands.openMenu.NAME] = function(drv, dev) open_menu(drv, dev) end,
     },
     [capabilities.keypadInput.ID] = { [capabilities.keypadInput.commands.sendKey.NAME] = send_keypad },
 
