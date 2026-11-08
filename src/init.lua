@@ -8,7 +8,7 @@ local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
 
-local BUILD = "2026-11-08d"
+local BUILD = "2026-11-08e"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -410,8 +410,19 @@ local function discovery(driver, _opts, _should_continue)
     if is_tv(info) then
       found = found + 1
       local dni = dni_for(info, ip)
-      if known[dni] then
-        known[dni]:set_field("ip", ip, { persist = true })
+      local mac = proto.clean_mac(d.wifiMac)
+      local same = known[dni]
+      if not same then
+        -- a TV that was added by IP address (or under another id) is the same TV: do not add it twice
+        for _, x in pairs(known) do
+          local pip = tostring((x.preferences or {}).ipAddress or ""):gsub("%s", "")
+          if (mac and x:get_field("mac") == mac) or x:get_field("ip") == ip or pip == ip then same = x; break end
+        end
+      end
+      if same then
+        same:set_field("ip", ip, { persist = true })
+        if mac and not same:get_field("mac") then same:set_field("mac", mac, { persist = true }) end
+        log.info("[tv] discovery: " .. ip .. " is " .. tostring(same.label) .. ", nothing to add")
       else
         local label = tostring(d.name or "Samsung TV"):gsub("^%[TV%]%s*", "")
         log.info("[tv] discovery: " .. label .. " (" .. tostring(d.modelName) .. ") at " .. ip)
