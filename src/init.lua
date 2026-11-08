@@ -7,8 +7,9 @@ local cosock = require "cosock"
 local log = require "log"
 local api = require "tv_api"
 local proto = require "tv_proto"
+local emitq = require "emitq"  -- only changed values go to the hub (see emitq.lua)
 
-local BUILD = "2026-11-08e"
+local BUILD = "2026-11-09a"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -55,10 +56,9 @@ local function shown_volume(dev)
   return ok and tonumber(st) or tonumber((dev:get_field("last_volume")))
 end
 
+-- only changed values go to the hub (emitq); the last value is also kept in a field for shown_volume
 local function emit(dev, key, value, event)
-  if dev:get_field("last_" .. key) == value then return end
-  local ok, err = pcall(function() dev:emit_event(event) end)
-  if ok then dev:set_field("last_" .. key, value) else log.warn("[tv] emit " .. key .. ": " .. tostring(err)) end
+  if emitq.try(dev, event) or dev:get_field("last_" .. key) == nil then dev:set_field("last_" .. key, value) end
 end
 
 local function save_token(dev, tok)
@@ -395,6 +395,7 @@ local function info_changed(_, dev, _event, args)
 end
 
 local function device_removed(_, dev)
+  emitq.forget(dev)
   local st = state[dev.id]
   if st and st.timer then pcall(function() dev.thread:cancel_timer(st.timer) end) end
   state[dev.id] = nil

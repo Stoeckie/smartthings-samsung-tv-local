@@ -2,12 +2,21 @@
 from run_lua import runtime
 
 HARNESS = r'''
-local function capmock(path)
+-- events shaped like the hub's ({ capability = { ID }, attribute = { NAME }, value = { value } }), plus path/arg
+local function capmock(path, segs)
+  segs = segs or { "cap" }
   return setmetatable({}, {
     __index = function(t, k)
-      if k == "NAME" then return path:match("([^.]+)$") end
-      local v = capmock(path .. "." .. k); rawset(t, k, v); return v end,
-    __call = function(_, a) return { path = path, arg = a } end })
+      if k == "NAME" then return segs[#segs] end
+      local s = {}
+      for i, x in ipairs(segs) do s[i] = x end
+      s[#s + 1] = k
+      local v = capmock(path .. "." .. k, s); rawset(t, k, v); return v end,
+    __call = function(_, a, b)
+      local val = a
+      if type(val) ~= "table" then val = { value = segs[4] or a } end
+      return { path = path, arg = a, capability = { ID = segs[2] }, attribute = { NAME = segs[3] }, value = val,
+               visibility = b and b.visibility } end })
 end
 local caps = capmock("cap")
 for _, id in ipairs({ "switch", "audioVolume", "audioMute", "mediaInputSource", "tvChannel", "refresh", "keypadInput", "momentary" }) do caps[id].ID = id end

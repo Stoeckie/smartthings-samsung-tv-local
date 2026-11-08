@@ -34,6 +34,7 @@ The pairing token the TV gives stays on your hub, in a device field.
 * **Remote keys:** arrows, OK, back, exit, menu, settings, home and numbers (keypadInput). In a routine, "set channel" also takes a key sequence such as `KEY_SOURCE+800+KEY_RIGHT+KEY_ENTER` (pauses in ms).
 * **The remote control channel stays open** between commands and closes after 2 minutes without keys, so keys go through without delay.
 * **The input list is fixed** (HDMI1 to HDMI4, TV) because the keys are HDMI1 to HDMI4. The current input is the last one chosen through this driver.
+* **Events:** a value only goes to the hub when it changed; after a driver start every value is sent once so the app catches up (re-emitting unchanged values makes the hub drop events of a device).
 * **Tested on:** a 2023 Neo QLED (QN900C).
 
 ## Credits
