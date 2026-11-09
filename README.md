@@ -40,5 +40,7 @@ The pairing token the TV gives stays on your hub, in a device field.
 ## Credits
 The protocols are described by [samsung-tv-ws-api](https://github.com/xchwarze/samsung-tv-ws-api) (MIT) and [ha-samsungtv-smart](https://github.com/fi-sch/ha-samsungtv-smart) (Apache 2.0). This driver is written from scratch in Lua. No code from those projects is included.
 
+**Security (build 2026-11-09b):** the TV's self-signed certificate is pinned when the token is first used. Another certificate later (TV reset, or another device at the TV's address): the token is not sent, the driver forgets it and the TV asks Allow again.
+
 ## License
 Apache 2.0, see LICENSE. Not affiliated with Samsung.

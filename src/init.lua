@@ -9,7 +9,7 @@ local api = require "tv_api"
 local proto = require "tv_proto"
 local emitq = require "emitq"  -- only changed values go to the hub (see emitq.lua)
 
-local BUILD = "2026-11-09a"
+local BUILD = "2026-11-09b"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -71,7 +71,13 @@ end
 local function send_keys(dev, keys, wait, gap)
   local host = settings(dev)
   if host == "" then log.warn("[tv] " .. tostring(dev.label) .. ": no IP address yet"); return false end
-  local tok, err = api.keys(host, dev:get_field("token"), keys, wait or 30, gap)
+  local tok, err = api.keys(host, dev:get_field("token"), keys, wait or 30, gap, dev)
+  if not tok and tostring(err):find("certificate", 1, true) then
+    -- another certificate than at pairing (TV reset, or another device at its address): the token was not
+    -- sent; forget it, so the next try pairs again (the TV asks Allow on screen)
+    dev:set_field("token", nil, { persist = true })
+    dev:set_field("cert_pin", nil, { persist = true })
+  end
   if not tok then
     log.warn("[tv] " .. tostring(dev.label) .. " " .. table.concat(keys, ",") .. ": " .. tostring(err))
     return false

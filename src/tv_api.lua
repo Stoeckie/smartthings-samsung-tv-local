@@ -5,6 +5,7 @@
 --   wake-on-LAN (UDP 9) and SSDP discovery
 local socket = require "cosock.socket"
 local ssl = require "cosock.ssl"
+local pin = require "certpin"
 local json = require "st.json"
 local proto = require "tv_proto"
 
@@ -94,17 +95,21 @@ end
 
 --- Open the remote control channel. Waits up to `wait` seconds for the TV (the first time it shows "Allow").
 --- Returns conn, token or nil, err.
-function M.ws_open(host, token, wait)
+function M.ws_open(host, token, wait, dev)
   local sock, err = socket.tcp()
   if not sock then return nil, "tcp: " .. tostring(err) end
   sock:settimeout(M.TIMEOUT)
   local ok, cerr = sock:connect(host, 8002)
   if not ok then sock:close(); return nil, "connect: " .. tostring(cerr) end
-  -- the TV has a self-signed certificate; LAN only
+  -- the TV has a self-signed certificate: pinned instead (certpin.lua), checked before the token is sent
   local tls, werr = ssl.wrap(sock, { mode = "client", protocol = "any", verify = "none", options = "all" })
   if not tls then sock:close(); return nil, "tls wrap: " .. tostring(werr) end
   local hs, herr = tls:dohandshake()
   if not hs then tls:close(); return nil, "tls handshake: " .. tostring(herr) end
+  if token and token ~= "" and dev then
+    local okp, perr = pin.check(tls, host, token, dev)
+    if not okp then tls:close(); return nil, perr end
+  end
   local raw = {}
   for i = 1, 16 do raw[i] = string.char(math.random(0, 255)) end
   local sent, serr = tls:send(proto.ws_upgrade(host, 8002, proto.ws_path(token), proto.b64(table.concat(raw))))
@@ -186,12 +191,12 @@ end
 
 --- Send keys (gap = seconds between keys, default 0.4) over the open channel, opening it when needed.
 --- Returns token (possibly new) or nil, err.
-function M.keys(host, token, keys, wait, gap)
+function M.keys(host, token, keys, wait, gap, dev)
   local tok = token
   for attempt = 1, 2 do
     local ch = chans[host]
     if not (ch and ch.alive) then
-      local conn, t = M.ws_open(host, token, wait)
+      local conn, t = M.ws_open(host, token, wait, dev)
       if not conn then return nil, t end
       tok = t
       ch = { conn = conn, alive = true, used = socket.gettime() }
