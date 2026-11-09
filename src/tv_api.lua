@@ -317,26 +317,35 @@ function M.local_ip()
   if ip and ip ~= "0.0.0.0" then return ip end
 end
 
---- Fallback when SSDP finds nothing: try port 8001 on every address of the hub's /24 network, in parallel.
+--- Fallback when SSDP finds nothing: try port 8001 on every address of the hub's /24 network.
+-- At most SCAN_PARALLEL sockets at once: a driver may hold 255 sockets in all, 254 at once starved the rest
+-- of the driver (and the other TVs). 8 rounds of at most 1 s each fit in the 10 s deadline.
+M.SCAN_PARALLEL = 32
 function M.scan(prefix)
   prefix = prefix or tostring(M.local_ip() or ""):match("^(%d+%.%d+%.%d+)%.")
   if not prefix then return {} end
   local cosock = require "cosock"
-  local found, left = {}, 254
-  for i = 1, 254 do
+  local found, next_i, running = {}, 1, 0
+  local deadline = socket.gettime() + 10
+  local workers = math.min(M.SCAN_PARALLEL, 254)
+  for _ = 1, workers do
+    running = running + 1
     cosock.spawn(function()
-      local ip = prefix .. "." .. i
-      local sock = socket.tcp()
-      if sock then
-        sock:settimeout(1.5)
-        if sock:connect(ip, 8001) then found[#found + 1] = ip end
-        sock:close()
+      -- each worker takes the next address until all are done or the deadline has passed
+      while next_i <= 254 and socket.gettime() < deadline do
+        local ip = prefix .. "." .. next_i
+        next_i = next_i + 1
+        local sock = socket.tcp()
+        if sock then
+          sock:settimeout(1)
+          if sock:connect(ip, 8001) then found[#found + 1] = ip end
+          sock:close()
+        end
       end
-      left = left - 1
+      running = running - 1
     end, "tv-scan")
   end
-  local deadline = socket.gettime() + 10
-  while left > 0 and socket.gettime() < deadline do socket.sleep(0.2) end
+  while running > 0 and socket.gettime() < deadline do socket.sleep(0.2) end
   return found
 end
 

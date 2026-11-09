@@ -57,3 +57,30 @@ def test_power():
     assert p.power(j.decode(b'{"device":{"PowerState":"on"}}')) == b"on"
     assert p.power(j.decode(b'{"device":{"PowerState":"standby"}}')) == b"standby"
     assert p.power(j.decode(b'{"device":{}}')) == b"on"
+
+
+def test_scan_in_batches():
+    """The /24 scan keeps at most 32 sockets open at once and still tries every address."""
+    lua = runtime()
+    found, peak, tried = lua.execute(b'''
+      local OPEN, PEAK, TRIED, NOW, QUEUE = 0, 0, 0, 0, {}
+      package.loaded["cosock"] = { spawn = function(f) QUEUE[#QUEUE + 1] = coroutine.create(f) end }
+      package.loaded["cosock.ssl"] = {}
+      package.loaded["log"] = { info = function() end, warn = function() end, error = function() end, debug = function() end }
+      package.loaded["cosock.socket"] = {
+        gettime = function() return NOW end,
+        sleep = function(t)   -- run the workers: each connect yields once (a pending connection)
+          NOW = NOW + t
+          for _, co in ipairs(QUEUE) do if coroutine.status(co) == "suspended" then assert(coroutine.resume(co)) end end
+        end,
+        tcp = function()
+          OPEN = OPEN + 1; PEAK = math.max(PEAK, OPEN)
+          return { settimeout = function() end, close = function() OPEN = OPEN - 1 end,
+                   connect = function(_, ip) TRIED = TRIED + 1; coroutine.yield(); return ip == "10.0.0.27" end }
+        end }
+      package.loaded["tv_api"] = nil
+      local api = require("tv_api")
+      local f = api.scan("10.0.0")
+      return f, PEAK, TRIED''')
+    assert peak <= 32 and tried == 254
+    assert list(found.values()) == [b"10.0.0.27"]

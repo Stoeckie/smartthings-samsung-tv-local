@@ -57,7 +57,8 @@ package.loaded["tv_api"] = {
 DEVICES = {}
 local function mkdev(o)
   o.fields = {}; o.events = {}; o.status = "offline"; o.preferences = o.preferences or {}
-  o.thread = { call_on_schedule = function(_, _, f) POLLFN = f; return 1 end, call_with_delay = function() end, cancel_timer = function() end }
+  o.thread = { call_on_schedule = function(_, _, f) POLLFN = f; return 1 end, call_with_delay = function(_, d, f, name)
+    if name == "tv-first-poll" then FIRST = { d = d, f = f } end end, cancel_timer = function() end }
   function o:get_field(k) if self.fields[k] == nil then return end return self.fields[k] end  -- like the hub: nothing at all
   function o:set_field(k, v) self.fields[k] = v end
   function o:emit_event(e) self.events[e.path] = e.arg == nil and true or e.arg; self.events.n = (self.events.n or 0) + 1 end
@@ -78,6 +79,7 @@ def setup():
     lua.execute(HARNESS.encode())
     lua.execute(b'require("init")')
     lua.execute(b'DRIVER.discovery(DRV, {}, function() return true end); DEV = DEVICES[1]')
+    lua.execute(b'FIRST.f()')   # the random first delay has passed: the schedule starts
     return lua
 
 
@@ -133,9 +135,10 @@ def test_commands():
 def test_tv_off_and_refused():
     lua = setup()
     g = lua.globals()
+    n = len(g.SPAWNED)   # the first poll (setup) may already have asked for pairing
     lua.execute(b'TV.power = "off"; DRIVER.capability_handlers.refresh.refresh(DRV, DEV)')
-    assert ev(lua, "cap.switch.switch.off") is True and len(g.SPAWNED) == 0
-    lua.execute(b'TV.power = "on"; TV.allowed = false; DRIVER.capability_handlers.refresh.refresh(DRV, DEV); SPAWNED[1]()')
+    assert ev(lua, "cap.switch.switch.off") is True and len(g.SPAWNED) == n
+    lua.execute(b'TV.power = "on"; TV.allowed = false; DRIVER.capability_handlers.refresh.refresh(DRV, DEV); SPAWNED[#SPAWNED]()')
     assert g.DEV.fields[b"token"] is None
     assert any(b"refused" in (m or b"") for m in g.LOGS.values())
 
@@ -260,3 +263,28 @@ def test_sources_by_name():
     n = len(g.CALLS)
     lua.execute(H % b"Sonos Beam")   # list opened and closed without a choice: the shown source again
     assert len(g.CALLS) == n
+
+
+def test_first_poll_random_delay():
+    """The schedule starts after a random delay of 1..interval s, so TVs do not poll in lockstep."""
+    lua = setup()
+    g = lua.globals()
+    assert 1 <= g.FIRST.d <= 10
+    lua.execute(b'DEV.preferences.pollInterval = 60; FIRST = nil; DRIVER.lifecycle_handlers.infoChanged(DRV, DEV, {}, { preferences = {} })')
+    assert g.FIRST is not None and 1 <= g.FIRST.d <= 60
+
+
+def test_soundbar_mute_after_restart():
+    """External sound: last_mute is persisted; when it is gone (Refresh, restart) the app's state decides."""
+    lua = setup()
+    g = lua.globals()
+    lua.execute(b'DEV.fields.token = "tok1"; DEV.preferences.soundOutput = "external"')
+    lua.execute(b'PERSIST = {}; local sf = DEV.set_field; DEV.set_field = function(self, k, v, o) PERSIST[k] = o and o.persist; sf(self, k, v) end')
+    lua.execute(b'DRIVER.capability_handlers.audioMute.setMute(DRV, DEV, { args = { state = "muted" } })')
+    assert g.DEV.fields[b"last_mute"] == b"1" and g.PERSIST[b"last_mute"] is True
+    # restart / Refresh: the field is gone, the app shows muted -> Unmute must send the key
+    lua.execute(b'DEV.fields.last_mute = nil; DEV.get_latest_state = function(_, c, cap, a) if a == "mute" then return "muted" end end')
+    lua.execute(b'CALLS = {}; DRIVER.capability_handlers.audioMute.setMute(DRV, DEV, { args = { state = "unmuted" } })')
+    assert g.CALLS[1] == b"keys:tok1:KEY_MUTE" and g.DEV.fields[b"last_mute"] == b"0"
+    lua.execute(b'CALLS = {}; DRIVER.capability_handlers.audioMute.unmute(DRV, DEV)')   # already unmuted
+    assert len(g.CALLS) == 0

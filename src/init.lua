@@ -9,7 +9,7 @@ local api = require "tv_api"
 local proto = require "tv_proto"
 local emitq = require "emitq"  -- only changed values go to the hub (see emitq.lua)
 
-local BUILD = "2026-11-09b"
+local BUILD = "2026-11-09c"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -57,8 +57,19 @@ local function shown_volume(dev)
 end
 
 -- only changed values go to the hub (emitq); the last value is also kept in a field for shown_volume
+-- last_mute is persisted: with external sound KEY_MUTE toggles, so a restart must not forget the state
 local function emit(dev, key, value, event)
-  if emitq.try(dev, event) or dev:get_field("last_" .. key) == nil then dev:set_field("last_" .. key, value) end
+  if emitq.try(dev, event) or dev:get_field("last_" .. key) == nil then
+    dev:set_field("last_" .. key, value, key == "mute" and { persist = true } or nil)
+  end
+end
+
+-- Muted as shown: our field, else what the app shows (the field is cleared by Refresh). true/false
+local function shown_muted(dev)
+  local m = dev:get_field("last_mute")
+  if m ~= nil then return m == "1" end
+  local ok, st = pcall(function() return dev:get_latest_state("main", "audioMute", "mute") end)
+  return ok and st == "muted"
 end
 
 local function save_token(dev, tok)
@@ -194,9 +205,12 @@ end
 local function schedule(dev)
   local st = state[dev.id]
   if st.timer then pcall(function() dev.thread:cancel_timer(st.timer) end) end
-  local interval = tonumber((dev.preferences or {}).pollInterval) or 10
-  st.timer = dev.thread:call_on_schedule(interval, function() poll(dev) end, "tv-poll")
-  dev.thread:call_with_delay(2, function() poll(dev) end)
+  local interval = math.max(1, math.floor(tonumber((dev.preferences or {}).pollInterval) or 10))
+  -- random first delay, then the schedule: TVs started together (hub restart) do not poll in lockstep
+  st.timer = dev.thread:call_with_delay(math.random(1, interval), function()
+    st.timer = dev.thread:call_on_schedule(interval, function() poll(dev) end, "tv-poll")
+    poll(dev)
+  end, "tv-first-poll")
 end
 
 local function is_on(dev)
@@ -263,7 +277,7 @@ local function set_mute(dev, on)
   local host = settings(dev)
   if external_sound(dev) then
     -- KEY_MUTE toggles: only send it when the state shown differs
-    if (dev:get_field("last_mute") == "1") == on then return end
+    if shown_muted(dev) == on then return end
     if send_keys(dev, { "KEY_MUTE" }) then
       emit(dev, "mute", on and "1" or "0", on and mute.mute.muted() or mute.mute.unmuted())
     end
