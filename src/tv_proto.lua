@@ -132,7 +132,7 @@ function M.broadcast_for(ip)
 end
 
 M.INPUTS = { HDMI1 = "KEY_HDMI1", HDMI2 = "KEY_HDMI2", HDMI3 = "KEY_HDMI3", HDMI4 = "KEY_HDMI4", digitalTv = "KEY_DTV" }
-M.INPUT_LIST = { "HDMI1", "HDMI2", "HDMI3", "HDMI4", "digitalTv" }
+M.INPUT_LIST = { "digitalTv", "HDMI1", "HDMI2", "HDMI3", "HDMI4" }
 
 --- Keys for a channel number: digits then enter.
 function M.channel_keys(ch)

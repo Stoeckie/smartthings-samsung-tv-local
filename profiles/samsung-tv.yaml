@@ -14,6 +14,8 @@ components:
         version: 1
       - id: silvervalley08660.tvInput
         version: 1
+      - id: mediaInputSource
+        version: 1
       - id: silvervalley08660.tvSourceMenu
         version: 1
       - id: refresh
@@ -71,3 +73,6 @@ preferences:
       minimum: 1
       maximum: 8
       default: 2
+metadata:
+  mnmn: SmartThingsCommunity
+  vid: 2d23d6e5-4fdb-33fd-8b84-ac1fbedf8f4c

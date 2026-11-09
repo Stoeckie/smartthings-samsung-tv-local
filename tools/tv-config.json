@@ -1,0 +1,118 @@
+{
+ "type": "profile",
+ "mnmn": "SmartThingsCommunity",
+ "dashboard": {
+  "states": [
+   {
+    "component": "main",
+    "capability": "switch",
+    "version": 1
+   }
+  ],
+  "actions": [
+   {
+    "component": "main",
+    "capability": "switch",
+    "version": 1
+   }
+  ]
+ },
+ "detailView": [
+  {
+   "component": "main",
+   "capability": "switch",
+   "version": 1
+  },
+  {
+   "component": "main",
+   "capability": "audioVolume",
+   "version": 1
+  },
+  {
+   "component": "main",
+   "capability": "audioMute",
+   "version": 1
+  },
+  {
+   "component": "main",
+   "capability": "tvChannel",
+   "version": 1
+  },
+  {
+   "component": "main",
+   "capability": "keypadInput",
+   "version": 1
+  },
+  {
+   "component": "main",
+   "capability": "silvervalley08660.tvInput",
+   "version": 1
+  },
+  {
+   "component": "main",
+   "capability": "silvervalley08660.tvSourceMenu",
+   "version": 1
+  },
+  {
+   "component": "main",
+   "capability": "refresh",
+   "version": 1
+  }
+ ],
+ "automation": {
+  "conditions": [
+   {
+    "component": "main",
+    "capability": "switch",
+    "version": 1
+   },
+   {
+    "component": "main",
+    "capability": "audioVolume",
+    "version": 1
+   },
+   {
+    "component": "main",
+    "capability": "audioMute",
+    "version": 1
+   },
+   {
+    "component": "main",
+    "capability": "mediaInputSource",
+    "version": 1
+   }
+  ],
+  "actions": [
+   {
+    "component": "main",
+    "capability": "switch",
+    "version": 1
+   },
+   {
+    "component": "main",
+    "capability": "audioVolume",
+    "version": 1
+   },
+   {
+    "component": "main",
+    "capability": "audioMute",
+    "version": 1
+   },
+   {
+    "component": "main",
+    "capability": "tvChannel",
+    "version": 1
+   },
+   {
+    "component": "main",
+    "capability": "mediaInputSource",
+    "version": 1
+   },
+   {
+    "component": "main",
+    "capability": "keypadInput",
+    "version": 1
+   }
+  ]
+ }
+}

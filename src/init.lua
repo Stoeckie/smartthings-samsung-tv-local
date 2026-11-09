@@ -9,7 +9,7 @@ local api = require "tv_api"
 local proto = require "tv_proto"
 local emitq = require "emitq"  -- only changed values go to the hub (see emitq.lua)
 
-local BUILD = "2026-11-09c"
+local BUILD = "2026-11-10a"
 local PAIR_EVERY = 120
 local PAIR_TRIES = 5
 local REDISCOVER_EVERY = 300
@@ -395,6 +395,10 @@ local function device_init(_, dev)
   if dev:get_field("source") then
     pcall(function() dev:emit_event(tvsource.source(dev:get_field("source"), { visibility = { displayed = false } })) end)
   end
+  -- standard input list for routines (the app shows no choices there for the own Source list): TV and HDMI 1 to 4,
+  -- picked like the Input setting (Source menu tile on TVs from 2021 on)
+  pcall(function() dev:emit_event(input.supportedInputSources(proto.INPUT_LIST, { visibility = { displayed = false } })) end)
+  pcall(function() dev:emit_event(input.inputSource(dev:get_field("input") or "digitalTv", { visibility = { displayed = false } })) end)
   pcall(function() dev:emit_event(capabilities.keypadInput.supportedKeyCodes(proto.KEYPAD_LIST, { visibility = { displayed = false } })) end)
   pcall(function() dev:emit_event(tvmenu.menu("closed")) end)
   -- The app greys out a control whose attribute never had a value ("has not updated all status data"). The TV

@@ -288,3 +288,11 @@ def test_soundbar_mute_after_restart():
     assert g.CALLS[1] == b"keys:tok1:KEY_MUTE" and g.DEV.fields[b"last_mute"] == b"0"
     lua.execute(b'CALLS = {}; DRIVER.capability_handlers.audioMute.unmute(DRV, DEV)')   # already unmuted
     assert len(g.CALLS) == 0
+
+
+def test_standard_inputs_for_routines():
+    """Routines show no choices for the own Source list: the standard input list is emitted at init."""
+    lua = setup()
+    names = lua.eval(b'DEV.events["cap.mediaInputSource.supportedInputSources"]')
+    assert names is not None
+    assert [names[i] for i in range(1, 6)] == [b"digitalTv", b"HDMI1", b"HDMI2", b"HDMI3", b"HDMI4"]
